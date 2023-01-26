@@ -1,16 +1,28 @@
-//pub const MAP_HEIGHT: usize = 25;
-//pub const MAP_WIDTH: usize = 100;
-pub const MAP_HEIGHT: usize = 50;
-pub const MAP_WIDTH: usize = 50;
+pub const MAP_HEIGHT: usize = 75;
+pub const MAP_WIDTH: usize = 75;
+pub const MIN_ROOM_SIZE: usize = 5;
+pub const MAX_ROOM_SIZE: usize = 20;
+pub const MIN_ROOMS: usize = 7;
+pub const MAX_ROOMS: usize = 14;
 
+use rand::Rng;
+use std::collections::HashMap;
 
 use bevy::app::*;
 use bevy::ecs::component::Component;
 use bevy::ecs::system::Commands;
-use rand::Rng;
 
 use crate::gameobjects::*;
 use crate::terminal::*;
+
+#[derive(Clone, Copy, Component)]
+pub struct MapObject;
+
+#[derive(Clone, Eq, PartialEq, Hash, Copy)]
+pub enum MapObjectType {
+    Floor,
+    Wall,
+}
 
 #[derive(Resource)]
 pub struct StartPos {
@@ -19,14 +31,37 @@ pub struct StartPos {
 
 #[derive(Resource)]
 pub struct CurrentMap {
-    pub map: Vec<Vec<TileType>>,
+    pub map: Vec<Vec<MapObjectType>>,
 }
 
-//using until the ECS version
-#[derive(Component, Clone)]
-pub struct TileType {
-    pub ch: char,
-    pub walkable: bool,
+#[derive(Clone)]
+pub struct Room {
+    pub map: Vec<Vec<MapObjectType>>,
+}
+
+impl Room {
+    pub fn new() -> Room {
+        Room { map: Vec::new() }
+    }
+    pub fn random() -> Room {
+        let mut room = Room::new();
+        let height = rand::thread_rng().gen_range(MIN_ROOM_SIZE..=MAX_ROOM_SIZE);
+        let width = rand::thread_rng().gen_range(MIN_ROOM_SIZE..=MAX_ROOM_SIZE);
+
+        for x in 0..height {
+            room.map.push([].to_vec());
+            for _ in 0..width {
+                room.map[x].push(MapObjectType::Floor);
+            }
+        }
+        room
+    }
+    fn center(&self) -> Position {
+        Position {
+            x: self.map[0].len() as i32 / 2,
+            y: self.map.len() as i32 / 2,
+        }
+    }
 }
 
 pub struct MapPlugin;
@@ -35,153 +70,126 @@ impl Plugin for MapPlugin {
         app.insert_resource(StartPos {
             pos: Position { x: 0, y: 0 },
         });
-        app.insert_resource(CurrentMap { map: Vec::new() });
-        app.add_startup_system(MapPlugin::setup_map);
-        app.add_system(MapPlugin::draw_map);
+        app.insert_resource(CurrentMap {
+            map: vec![vec![MapObjectType::Wall; MAP_WIDTH]; MAP_HEIGHT],
+        });
+        app.add_startup_system(MapPlugin::setup);
+        app.add_system(MapPlugin::update_rendering_map);
     }
 }
+
 impl MapPlugin {
-    //generates a map and then updates the values for the present map and the starting position
-    pub fn setup_map(mut start_pos: ResMut<StartPos>, mut current_map: ResMut<CurrentMap>) {
-        let tile = TileType {
-            ch: '#',
-            walkable: false,
+    pub fn add_room_to_map(current_map: &mut ResMut<CurrentMap>, room: &Room, pos: &Position) {
+        for x in 0..room.map.len() {
+            for y in 0..room.map[x].len() {
+                current_map.map[x + pos.x as usize][y + pos.y as usize] = room.map[x][y];
+            }
+        }
+    }
+
+    pub fn connect_room_centers(
+        center1: &Position,
+        center2: &Position,
+        current_map: &mut ResMut<CurrentMap>,
+    ) {
+        let mut temp = Position {
+            x: center1.x,
+            y: center1.y,
         };
-        let mut map = vec![vec![tile; MAP_WIDTH]; MAP_HEIGHT];
-        let n_rooms: i32 = rand::thread_rng().gen_range(5..14);
+        loop {
+            if ((temp.x - 1) - center2.x).abs() < (temp.x - center2.x).abs() {
+                temp.x -= 1
+            } else if ((temp.x + 1) - center2.x).abs() < (temp.x - center2.x).abs() {
+                temp.x += 1
+            } else if ((temp.y + 1) - center2.y).abs() < (temp.y - center2.y).abs() {
+                temp.y += 1
+            } else if ((temp.y - 1) - center2.y).abs() < (temp.y - center2.y).abs() {
+                temp.y -= 1
+            } else {
+                break;
+            }
+            current_map.map[temp.y as usize][temp.x as usize] = MapObjectType::Floor;
+        }
+    }
 
-        let mut rooms: Vec<Room> = Vec::new();
-
-        for i in 0..(n_rooms) {
-            rooms.push(Room::new_random());
-            add_room_to_map(&rooms[i as usize], &mut map);
-
+    fn setup(mut current_map: ResMut<CurrentMap>) {
+        let n_rooms: usize = rand::thread_rng().gen_range(MIN_ROOMS..MAX_ROOMS);
+        let mut rooms: Vec<(Room, Position)> = Vec::new();
+        for i in 0..n_rooms {
+            let random_pos = Position {
+                x: rand::thread_rng().gen_range(1..(MAP_WIDTH - MAX_ROOM_SIZE) as i32),
+                y: rand::thread_rng().gen_range(1..(MAP_HEIGHT - MAX_ROOM_SIZE) as i32),
+            };
+            rooms.push((Room::random(), random_pos.clone()));
+            Self::add_room_to_map(&mut current_map, &rooms[i as usize].0, &rooms[i as usize].1);
             if i > 0 {
-                connect_room_centers(
-                    &rooms[i as usize - 1].center(),
-                    &rooms[i as usize].center(),
-                    &mut map,
+                Self::connect_room_centers(
+                    &Position::add(&rooms[i as usize - 1].0.center(), &rooms[i as usize - 1].1),
+                    &Position::add(&rooms[i as usize].0.center(), &rooms[i as usize].1),
+                    &mut current_map,
                 )
             }
         }
-
-        start_pos.pos = Position {
-            x: rooms[0].center().x,
-            y: rooms[0].center().y,
-        };
-
-        current_map.map = map;
     }
 
-    pub fn draw_map(mut commands: Commands, map: Res<CurrentMap>) {
-        for y in 0..map.map.len() {
-            for x in 0..map.map[y].len() {
-                match map.map[y][x].ch {
-                    '.' => {
+    fn update_rendering_map(
+        mut commands: Commands,
+        current_map: Res<CurrentMap>,
+        query: Query<Entity, With<MapObject>>,
+    ) {
+        let map = &current_map.map;
+        //hashmap shall not include position
+        let mut hashmap = HashMap::new();
+        hashmap.insert(
+            MapObjectType::Floor,
+            (
+                MapObject,
+                Name::new("floor"),
+                DrawTerm {
+                    ch: ' ',
+                    color: Color::GRAY,
+                },
+            ),
+        );
+        hashmap.insert(
+            MapObjectType::Wall,
+            (
+                MapObject,
+                Name::new("wall"),
+                DrawTerm {
+                    ch: '#',
+                    color: Color::WHITE,
+                },
+            ),
+        );
+
+        for entity in &query {
+            commands.entity(entity).despawn();
+        }
+
+        for y in 0..map.len() {
+            for x in 0..map[y].len() {
+                match &map[y][x] {
+                    MapObjectType::Floor => {
                         commands.spawn((
-                            Object,
-                            Name::new("floor"),
+                            hashmap.get(&MapObjectType::Floor).unwrap().clone(),
                             Position {
                                 x: x as i32,
                                 y: y as i32,
-                            },
-                            DrawTerm {
-                                ch: '.',
-                                color: Color::RED,
                             },
                         ));
                     }
-                    ' ' => {
+                    MapObjectType::Wall => {
                         commands.spawn((
-                            Object,
-                            Name::new("floor"),
+                            hashmap.get(&MapObjectType::Wall).unwrap().clone(),
                             Position {
                                 x: x as i32,
                                 y: y as i32,
-                            },
-                            DrawTerm {
-                                ch: '.',
-                                color: Color::RED,
-                            },
-                        )); println!("added floor");
-                    }
-                    '#' => {
-                        commands.spawn((
-                            Object,
-                            Name::new("wall"),
-                            Position {
-                                x: x as i32,
-                                y: y as i32,
-                            },
-                            DrawTerm {
-                                ch: '#',
-                                color: Color::WHITE,
                             },
                         ));
                     }
-                    _ => println!("unexpected tile map"),
                 }
             }
         }
-    }
-}
-
-#[derive(Clone)]
-pub struct Room {
-    pub height: i32,
-    pub width: i32,
-    pub pos: Position,
-}
-
-impl Room {
-    pub fn center(&self) -> Position {
-        Position {
-            x: self.pos.x + self.width / 2,
-            y: self.pos.y + self.height / 2,
-        }
-    }
-
-    pub fn new_random() -> Self {
-        Room {
-            pos: Position {
-                x: rand::thread_rng().gen_range(1..(MAP_WIDTH - 20) as i32),
-                y: rand::thread_rng().gen_range(1..(MAP_HEIGHT - 10)) as i32,
-            },
-            height: rand::thread_rng().gen_range(3..9),
-            width: rand::thread_rng().gen_range(5..19),
-        }
-    }
-}
-
-pub fn add_room_to_map(room: &Room, map: &mut Vec<Vec<TileType>>) {
-    for y in room.pos.y..room.pos.y + room.height {
-        for x in room.pos.x..room.pos.x + room.width {
-            map[y as usize][x as usize] = TileType {
-                ch: ' ',
-                walkable: true,
-            };
-        }
-    }
-}
-
-pub fn connect_room_centers(center1: &Position, center2: &Position, map: &mut Vec<Vec<TileType>>) {
-    let mut temp = Position {
-        x: center1.x,
-        y: center1.y,
-    };
-    loop {
-        if ((temp.x - 1) - center2.x).abs() < (temp.x - center2.x).abs() {
-            temp.x -= 1
-        } else if ((temp.x + 1) - center2.x).abs() < (temp.x - center2.x).abs() {
-            temp.x += 1
-        } else if ((temp.y + 1) - center2.y).abs() < (temp.y - center2.y).abs() {
-            temp.y += 1
-        } else if ((temp.y - 1) - center2.y).abs() < (temp.y - center2.y).abs() {
-            temp.y -= 1
-        } else {
-            break;
-        }
-        map[temp.y as usize][temp.x as usize].ch = ' ';
-        map[temp.y as usize][temp.x as usize].walkable = true;
     }
 }

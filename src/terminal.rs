@@ -1,6 +1,4 @@
-//use crate::gameobjects::Name;
 use crate::gameobjects::*;
-//use crate::map::*;
 
 use bevy::app::App;
 use bevy::app::Plugin;
@@ -13,46 +11,6 @@ use bevy::ecs::system::*;
 pub struct DrawTerm {
     pub ch: char,
     pub color: Color,
-}
-impl DrawTerm {
-    /*
-    pub fn draw(mut commands: Commands, mut query: Query<(Entity, &Name)>) {
-        let player: DrawTerm = DrawTerm {
-            ch: '@',
-            color: TermColor::Player as u32,
-        };
-        let wall: DrawTerm = DrawTerm {
-            ch: '#',
-            color: TermColor::Wall as u32,
-        };
-        let floor: DrawTerm = DrawTerm {
-            ch: '.',
-            color: TermColor::Floor as u32,
-        };
-        let character: DrawTerm = DrawTerm {
-            ch: '@',
-            color: TermColor::Character as u32,
-        };
-        for (entity, name) in query.iter_mut() {
-            match name.as_str() {
-                "player" => {
-                    commands.entity(entity).insert(player.clone());
-                }
-                "wall" => {
-                    commands.entity(entity).insert(wall.clone());
-                }
-                "floor" => {
-                    commands.entity(entity).insert(floor.clone());
-                }
-                "character" => {
-                    commands.entity(entity).insert(character.clone());
-                }
-
-                _ => todo!(),
-            }
-        }
-    }
-    */
 }
 
 //identification for the type of terminal, it does nothing
@@ -93,8 +51,8 @@ impl TerminalDrawPlugin {
     }
     pub fn draw(
         mut term_query: Query<&mut Terminal, With<GameTerminal>>,
-        draw_query: Query<(&DrawTerm, &Position),  Without<RenderAbove>>,
-        draw_query_above: Query<(&DrawTerm, &Position),  With<RenderAbove>>
+        draw_query: Query<(&DrawTerm, &Position), Without<RenderAbove>>,
+        draw_query_above: Query<(&DrawTerm, &Position), With<RenderAbove>>,
     ) {
         for mut terminal in &mut term_query {
             terminal.clear();
