@@ -22,6 +22,8 @@ pub struct MapObject;
 pub enum MapObjectType {
     Floor,
     Wall,
+    Water,
+    Lava,
 }
 
 #[derive(Resource)]
@@ -37,11 +39,16 @@ pub struct CurrentMap {
 #[derive(Clone)]
 pub struct Room {
     pub map: Vec<Vec<MapObjectType>>,
+    //position in the map
+    pub pos: Position,
 }
 
 impl Room {
     pub fn new() -> Room {
-        Room { map: Vec::new() }
+        Room {
+            map: Vec::new(),
+            pos: Position::new(),
+        }
     }
     pub fn random() -> Room {
         let mut room = Room::new();
@@ -62,13 +69,22 @@ impl Room {
             y: self.map.len() as i32 / 2,
         }
     }
+
+    //the center of the room in the map (room.pos + room.center())
+    fn map_center(&self) -> Position {
+        Position {
+            //I dont know why it is inverted, I just know it works
+            x: self.center().x + self.pos.y,
+            y: self.center().y + self.pos.x,
+        }
+    }
 }
 
 pub struct MapPlugin;
 impl Plugin for MapPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(StartPos {
-            pos: Position { x: 0, y: 0 },
+            pos: Position::new(),
         });
         app.insert_resource(CurrentMap {
             map: vec![vec![MapObjectType::Wall; MAP_WIDTH]; MAP_HEIGHT],
@@ -114,21 +130,26 @@ impl MapPlugin {
 
     fn setup(mut current_map: ResMut<CurrentMap>) {
         let n_rooms: usize = rand::thread_rng().gen_range(MIN_ROOMS..MAX_ROOMS);
-        let mut rooms: Vec<(Room, Position)> = Vec::new();
-        for i in 0..n_rooms {
+        let mut rooms: Vec<Room> = Vec::new();
+        for _ in 0..n_rooms {
             let random_pos = Position {
                 x: rand::thread_rng().gen_range(1..(MAP_WIDTH - MAX_ROOM_SIZE) as i32),
                 y: rand::thread_rng().gen_range(1..(MAP_HEIGHT - MAX_ROOM_SIZE) as i32),
             };
-            rooms.push((Room::random(), random_pos.clone()));
-            Self::add_room_to_map(&mut current_map, &rooms[i as usize].0, &rooms[i as usize].1);
+            let mut random_room = Room::random();
+            random_room.pos = random_pos.clone();
+
+            rooms.push(random_room);
+        }
+        for i in 0..rooms.len() {
+            Self::add_room_to_map(&mut current_map, &rooms[i as usize], &rooms[i as usize].pos);
             if i > 0 {
-                Self::connect_room_centers(
-                    &Position::add(&rooms[i as usize - 1].0.center(), &rooms[i as usize - 1].1),
-                    &Position::add(&rooms[i as usize].0.center(), &rooms[i as usize].1),
-                    &mut current_map,
-                )
+                let center1 = rooms[i - 1].map_center();
+                let center2 = rooms[i].map_center();
+                Self::connect_room_centers(&center1, &center2, &mut current_map);
             }
+
+            //current_map.map[rooms[i].pos.x as usize][rooms[i].pos.y as usize] = MapObjectType::Water;
         }
     }
 
@@ -138,6 +159,7 @@ impl MapPlugin {
         query: Query<Entity, With<MapObject>>,
     ) {
         let map = &current_map.map;
+
         //hashmap shall not include position
         let mut hashmap = HashMap::new();
         hashmap.insert(
@@ -159,6 +181,28 @@ impl MapPlugin {
                 DrawTerm {
                     ch: '#',
                     color: Color::WHITE,
+                },
+            ),
+        );
+        hashmap.insert(
+            MapObjectType::Water,
+            (
+                MapObject,
+                Name::new("water"),
+                DrawTerm {
+                    ch: '#',
+                    color: Color::BLUE,
+                },
+            ),
+        );
+        hashmap.insert(
+            MapObjectType::Lava,
+            (
+                MapObject,
+                Name::new("lava"),
+                DrawTerm {
+                    ch: '#',
+                    color: Color::RED,
                 },
             ),
         );
@@ -188,6 +232,24 @@ impl MapPlugin {
                             },
                         ));
                     }
+                    MapObjectType::Water => {
+                        commands.spawn((
+                            hashmap.get(&MapObjectType::Water).unwrap().clone(),
+                            Position {
+                                x: x as i32,
+                                y: y as i32,
+                            },
+                        ));
+                    }
+                    MapObjectType::Lava => {
+                        commands.spawn((
+                            hashmap.get(&MapObjectType::Lava).unwrap().clone(),
+                            Position {
+                                x: x as i32,
+                                y: y as i32,
+                            },
+                        ));
+                    } //_ => todo!()
                 }
             }
         }

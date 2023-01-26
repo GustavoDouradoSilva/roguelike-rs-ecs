@@ -59,6 +59,7 @@ impl TerminalDrawPlugin {
             for (draw, pos) in &draw_query {
                 terminal.put_char([pos.x, pos.y], draw.ch.fg(draw.color));
             }
+            //drawings with renderabove are rendered after all the rest
             for (draw, pos) in &draw_query_above {
                 terminal.put_char([pos.x, pos.y], draw.ch.fg(draw.color));
             }

@@ -14,11 +14,16 @@ pub struct Position {
     pub y: i32,
 }
 impl Position {
+    /* 
     pub fn add(pos1: &Position, pos2: &Position) -> Position {
         Position {
             x: pos1.x + pos2.x,
             y: pos1.y + pos2.y,
         }
+    }*/
+    pub fn new() -> Position
+    {
+        Position { x: 0, y: 0 }
     }
 }
 
