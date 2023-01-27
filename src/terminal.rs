@@ -60,7 +60,6 @@ impl TerminalDrawPlugin {
     }
     pub fn draw(
         mut term_query: Query<&mut Terminal, With<GameTerm>>,
-
         draw_query: Query<(&DrawTerm, &Position), Without<RenderAbove>>,
         draw_query_above: Query<(&DrawTerm, &Position), With<RenderAbove>>,
     ) {
@@ -80,7 +79,9 @@ impl TerminalDrawPlugin {
         //renders the log terminal
         for mut terminal in &mut log_term_query {
             terminal.clear();
-            for (n, (text, color)) in log.log_text.iter().enumerate() {
+            let mut log_text = log.log_text.clone();
+            log_text.reverse();
+            for (n, (text, color)) in log_text.iter().enumerate() {
                 terminal.put_string([1, n], text.bg(*color))
             }
         }

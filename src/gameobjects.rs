@@ -67,7 +67,7 @@ impl PopulatePlugin {
             },
             RenderAbove,
         ));
-        commands.spawn((
+        /* commands.spawn((
             Character,
             Name::new("enemy"),
             Position { x: 5, y: 5 },
@@ -76,7 +76,7 @@ impl PopulatePlugin {
                 color: Color::RED,
             },
             RenderAbove,
-        ));
+        )); */
     }
 }
 impl Plugin for PopulatePlugin {

@@ -128,7 +128,11 @@ impl MapPlugin {
         }
     }
 
-    pub fn setup(mut current_map: ResMut<CurrentMap>, mut start_pos: ResMut<StartPos>) {
+    pub fn setup(
+        mut current_map: ResMut<CurrentMap>,
+        mut start_pos: ResMut<StartPos>,
+        mut log_text: ResMut<LogText>,
+    ) {
         let n_rooms: usize = rand::thread_rng().gen_range(MIN_ROOMS..MAX_ROOMS);
         let mut rooms: Vec<Room> = Vec::new();
         for _ in 0..n_rooms {
@@ -150,11 +154,21 @@ impl MapPlugin {
             }
         }
         start_pos.pos = rooms[0].map_center();
-        println!(
-            "generated map with {} rooms, starting {:?}",
-            rooms.len(),
-            start_pos.pos
-        );
+        println!();
+        log_text.log_text.push((
+            format!(
+                "generated map with {} rooms",
+                rooms.len()
+            ),
+            Color::BLACK,
+        ));
+        log_text.log_text.push((
+            format!(
+                "starting {:?}",
+                rooms[0].pos
+            ),
+            Color::BLACK,
+        ));
     }
 
     fn update_rendering_map(
