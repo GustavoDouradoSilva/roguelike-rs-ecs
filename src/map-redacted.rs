@@ -1,5 +1,3 @@
-//pub const MAP_HEIGHT: usize = 25;
-//pub const MAP_WIDTH: usize = 100;
 pub const MAP_HEIGHT: usize = 50;
 pub const MAP_WIDTH: usize = 50;
 

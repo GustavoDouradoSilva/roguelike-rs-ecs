@@ -2,8 +2,8 @@ pub const MAP_HEIGHT: usize = 75;
 pub const MAP_WIDTH: usize = 75;
 pub const MIN_ROOM_SIZE: usize = 5;
 pub const MAX_ROOM_SIZE: usize = 20;
-pub const MIN_ROOMS: usize = 7;
-pub const MAX_ROOMS: usize = 14;
+pub const MIN_ROOMS: usize = 10;
+pub const MAX_ROOMS: usize = 15;
 
 use rand::Rng;
 use std::collections::HashMap;
@@ -128,7 +128,7 @@ impl MapPlugin {
         }
     }
 
-    fn setup(mut current_map: ResMut<CurrentMap>) {
+    pub fn setup(mut current_map: ResMut<CurrentMap>, mut start_pos: ResMut<StartPos>) {
         let n_rooms: usize = rand::thread_rng().gen_range(MIN_ROOMS..MAX_ROOMS);
         let mut rooms: Vec<Room> = Vec::new();
         for _ in 0..n_rooms {
@@ -148,9 +148,13 @@ impl MapPlugin {
                 let center2 = rooms[i].map_center();
                 Self::connect_room_centers(&center1, &center2, &mut current_map);
             }
-
-            //current_map.map[rooms[i].pos.x as usize][rooms[i].pos.y as usize] = MapObjectType::Water;
         }
+        start_pos.pos = rooms[0].map_center();
+        println!(
+            "generated map with {} rooms, starting {:?}",
+            rooms.len(),
+            start_pos.pos
+        );
     }
 
     fn update_rendering_map(
@@ -160,7 +164,7 @@ impl MapPlugin {
     ) {
         let map = &current_map.map;
 
-        //hashmap shall not include position
+        //hashmap shall not include position and collider
         let mut hashmap = HashMap::new();
         hashmap.insert(
             MapObjectType::Floor,
@@ -230,6 +234,7 @@ impl MapPlugin {
                                 x: x as i32,
                                 y: y as i32,
                             },
+                            Collider,
                         ));
                     }
                     MapObjectType::Water => {
