@@ -60,18 +60,37 @@ impl TerminalDrawPlugin {
     }
     pub fn draw(
         mut term_query: Query<&mut Terminal, With<GameTerm>>,
-        draw_query: Query<(&DrawTerm, &Position), Without<RenderAbove>>,
-        draw_query_above: Query<(&DrawTerm, &Position), With<RenderAbove>>,
+        draw_query: Query<(&DrawTerm, &Position, Option<&Visible>), Without<RenderAbove>>,
+        draw_query_above: Query<(&DrawTerm, &Position, Option<&Visible>), With<RenderAbove>>,
     ) {
         //renders the game terminal
         for mut terminal in &mut term_query {
             terminal.clear();
-            for (draw, pos) in &draw_query {
-                terminal.put_char([pos.x, pos.y], draw.ch.fg(draw.color));
+            for (draw, pos, visibility) in &draw_query {
+                if visibility.is_some()
+                    && visibility.unwrap().seen == true
+                    && visibility.unwrap().visible == false
+                {
+                    terminal.put_char([pos.x, pos.y], draw.ch.fg(Color::BLUE));
+                } else if visibility.is_some() && visibility.unwrap().seen == false {
+                    terminal.put_char([pos.x, pos.y], '%'.fg(Color::GRAY));
+                } else {
+                    terminal.put_char([pos.x, pos.y], draw.ch.fg(draw.color));
+                }
             }
             //drawings with renderabove are rendered after all the rest
-            for (draw, pos) in &draw_query_above {
-                terminal.put_char([pos.x, pos.y], draw.ch.fg(draw.color));
+            for (draw, pos, visibility) in &draw_query_above {
+                if visibility.is_some()
+                    && visibility.unwrap().seen == true
+                    && visibility.unwrap().visible == false
+                {
+                    terminal.put_char([pos.x, pos.y], draw.ch.fg(Color::BLUE));
+                } else if visibility.is_some() && visibility.unwrap().seen == false {
+                    terminal.put_char([pos.x, pos.y], '%'.fg(Color::GRAY));
+                } else {
+                    terminal.put_char([pos.x, pos.y], draw.ch.fg(draw.color));
+                }
+                //terminal.put_char([pos.x, pos.y], draw.ch.fg(draw.color));
             }
         }
     }

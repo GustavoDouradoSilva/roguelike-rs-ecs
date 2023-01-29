@@ -17,11 +17,6 @@ pub struct Position {
     pub y: i32,
 }
 
-#[derive(Component)]
-pub struct Seen;
-#[derive(Component)]
-pub struct Visible;
-
 impl Position {
     pub fn new() -> Position {
         Position { x: 0, y: 0 }
@@ -40,6 +35,13 @@ impl Position {
         self.x = new_pos.x;
         self.y = new_pos.y;
     }
+
+    pub fn distance(pos1: &Position, pos2: &Position) -> i32
+    {
+        let arg1 = (pos1.x - pos2.x).pow(2) as f32;
+        let arg2 = (pos1.y - pos2.y).pow(2) as f32;
+        f32::sqrt(arg1 +arg2).round() as i32
+    }
 }
 
 #[derive(Component)]
@@ -50,15 +52,16 @@ pub struct Collider;
 pub struct RenderAbove;
 
 #[derive(Component)]
-pub struct Character;
-impl Character {}
+pub struct FieldOfView {
+    pub radius: i32,
+}
 
 pub struct PopulatePlugin;
 impl PopulatePlugin {
     pub fn add_player(mut commands: Commands, start_pos: Res<StartPos>) {
         commands.spawn((
-            Player,
-            Character,
+            Player{field_of_view: 15},
+            
             Name::new("player"),
             start_pos.pos.clone(),
             DrawTerm {

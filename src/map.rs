@@ -18,6 +18,22 @@ use crate::terminal::*;
 #[derive(Clone, Copy, Component)]
 pub struct MapObject;
 
+#[derive(Component, Clone)]
+pub struct Visible {
+    pub seen: bool,
+    pub visible: bool,
+    pub block_sight: bool,
+}
+impl Visible {
+    pub fn new() -> Visible {
+        Visible {
+            seen: false,
+            visible: false,
+            block_sight: false,
+        }
+    }
+}
+
 #[derive(Clone, Eq, PartialEq, Hash, Copy)]
 pub enum MapObjectType {
     Floor,
@@ -90,7 +106,8 @@ impl Plugin for MapPlugin {
             map: vec![vec![MapObjectType::Wall; MAP_WIDTH]; MAP_HEIGHT],
         });
         app.add_startup_system(MapPlugin::setup);
-        app.add_system(MapPlugin::update_rendering_map);
+        //app.add_system(MapPlugin::update);
+        //app.add_system(MapPlugin::update_rendering_map);
     }
 }
 
@@ -132,6 +149,7 @@ impl MapPlugin {
         mut current_map: ResMut<CurrentMap>,
         mut start_pos: ResMut<StartPos>,
         mut log_text: ResMut<LogText>,
+        mut commands: Commands,
     ) {
         let n_rooms: usize = rand::thread_rng().gen_range(MIN_ROOMS..MAX_ROOMS);
         let mut rooms: Vec<Room> = Vec::new();
@@ -156,37 +174,24 @@ impl MapPlugin {
         start_pos.pos = rooms[0].map_center();
         println!();
         log_text.log_text.push((
-            format!(
-                "generated map with {} rooms",
-                rooms.len()
-            ),
+            format!("generated map with {} rooms", rooms.len()),
             Color::BLACK,
         ));
-        log_text.log_text.push((
-            format!(
-                "starting {:?}",
-                rooms[0].pos
-            ),
-            Color::BLACK,
-        ));
-    }
+        log_text
+            .log_text
+            .push((format!("starting {:?}", rooms[0].pos), Color::BLACK));
 
-    fn update_rendering_map(
-        mut commands: Commands,
-        current_map: Res<CurrentMap>,
-        query: Query<Entity, With<MapObject>>,
-    ) {
         let map = &current_map.map;
 
-        //hashmap shall not include position and collider
         let mut hashmap = HashMap::new();
         hashmap.insert(
             MapObjectType::Floor,
             (
                 MapObject,
+                Visible::new(),
                 Name::new("floor"),
                 DrawTerm {
-                    ch: ' ',
+                    ch: '.',
                     color: Color::GRAY,
                 },
             ),
@@ -195,6 +200,11 @@ impl MapPlugin {
             MapObjectType::Wall,
             (
                 MapObject,
+                Visible {
+                    seen: false,
+                    visible: false,
+                    block_sight: true,
+                },
                 Name::new("wall"),
                 DrawTerm {
                     ch: '#',
@@ -206,6 +216,7 @@ impl MapPlugin {
             MapObjectType::Water,
             (
                 MapObject,
+                Visible::new(),
                 Name::new("water"),
                 DrawTerm {
                     ch: '#',
@@ -217,6 +228,7 @@ impl MapPlugin {
             MapObjectType::Lava,
             (
                 MapObject,
+                Visible::new(),
                 Name::new("lava"),
                 DrawTerm {
                     ch: '#',
@@ -224,11 +236,6 @@ impl MapPlugin {
                 },
             ),
         );
-
-        for entity in &query {
-            commands.entity(entity).despawn();
-        }
-
         for y in 0..map.len() {
             for x in 0..map[y].len() {
                 match &map[y][x] {
